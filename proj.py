@@ -27,7 +27,7 @@ def gaussDeriv2D(sigma):
 
     return [G_x, G_y]
 
-
+# Can we use just grayscale image to detect the interest points?
 def harris(img, si=1, sd=0.7, R=range(16, 23), T=1e6, a=0.05):
     size_i = int(math.ceil(si * 3) * 2 + 1)
     weight = cv2.getGaussianKernel(ksize=size_i, sigma=si)
@@ -47,13 +47,13 @@ def harris(img, si=1, sd=0.7, R=range(16, 23), T=1e6, a=0.05):
 
 # TODO: descriptor
 
-def sift(img):
+def sift(img, x, y):
     pass
 
 
 # TODO: matching
-
-def match_imgs(img1, img2):
+# Compute shifting vectors
+def match_imgs(img1, img2, points1, points2):
     pass
 
 
