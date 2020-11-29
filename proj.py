@@ -19,6 +19,7 @@ def sift_detect_compute(img):
     pts = np.float32([p.pt for p in pts])
     return pts, fts
 
+
 # Based on that descriptor, we find the best matches
 def matching(fts1, fts2, ratio=0.5):
     matches, distances = descriptor_matching(fts1, fts2)  # match 2, then compare the ratio between these two.
@@ -68,6 +69,20 @@ def compute_homography(x_0, x_1):
     return mat
 
 
+def draw_matching(img1, pts1, img2, pts2):
+    (h1, w1) = img1.shape[:2]
+    (h2, w2) = img2.shape[:2]
+    canvas = np.zeros((max(h1, h2), w1+w2, 3), dtype='uint8')
+    canvas[0:h1, 0:w1] = img1
+    canvas[0:h2, w1:] = img2
+
+    for i in range(pts1.shape[0]):
+        pt1=tuple((int(pts1[i, 0]), int(pts1[i,1])))
+        pt2=tuple((int(pts2[i, 0]+w1), int(pts2[i, 1])))
+        cv2.line(canvas, pt1, pt2, (0, 0, 255), 1)
+    return canvas
+
+
 # TODO: implement stitch method.
 def stitch(img1, img2, M):
     stitched = None
@@ -81,8 +96,15 @@ def main():
     img2 = cv2.imread("img_2.jpg")
     pts1, fts1 = sift_detect_compute(img1)
     pts2, fts2 = sift_detect_compute(img2)
-    h_matrix = matching(pts1, fts1, pts2, fts2)
+    matching_pairs = matching(fts1, fts2)
+    keypoints1 = np.float32([pts1[int(m[0])] for m in matching_pairs])
+    keypoints2 = np.float32([pts2[int(m[1])] for m in matching_pairs])
+    h_matrix = compute_homography(keypoints1, keypoints2)
     result = stitch(img1, img2, h_matrix)  # TODO: complete code.
+    plt.subplot(211)
+    plt.imshow(cv2.cvtColor(draw_matching(img1, keypoints1,img2, keypoints2), cv2.COLOR_BGR2RGB))
+    plt.show()
+    # print(keypoints1, keypoints2)
     cv2.imwrite("out.jpg", result)
 
 
