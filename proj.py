@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 
 # Using OpenCV and SIFT to find the feature points and their SIFT descriptor
 
+# try to implement SIFT without calling CV2 function.
 def sift_detect_compute(img):
     sift = cv2.xfeatures2d.SIFT_create()
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -69,42 +70,61 @@ def compute_homography(x_0, x_1):
     return mat
 
 
+# draw the matching line.
 def draw_matching(img1, pts1, img2, pts2):
     (h1, w1) = img1.shape[:2]
     (h2, w2) = img2.shape[:2]
-    canvas = np.zeros((max(h1, h2), w1+w2, 3), dtype='uint8')
+    canvas = np.zeros((max(h1, h2), w1 + w2, 3), dtype='uint8')
     canvas[0:h1, 0:w1] = img1
     canvas[0:h2, w1:] = img2
 
     for i in range(pts1.shape[0]):
-        pt1=tuple((int(pts1[i, 0]), int(pts1[i,1])))
-        pt2=tuple((int(pts2[i, 0]+w1), int(pts2[i, 1])))
+        pt1 = tuple((int(pts1[i, 0]), int(pts1[i, 1])))
+        pt2 = tuple((int(pts2[i, 0] + w1), int(pts2[i, 1])))
         cv2.line(canvas, pt1, pt2, (0, 0, 255), 1)
     return canvas
 
 
-# TODO: implement stitch method.
+# try to implement stitch method without calling cv2 function.
 def stitch(img1, img2, M):
-    stitched = None
+    # stitched = np.zeros((max(img1.shape[0], img2.shape[0]), img1.shape[1] + img2.shape[1] ,3))
+    # for r in range(img2.shape[0]):
+    #     for c in range(img2.shape[1]):
+    #         try:
+    #             r_proj, c_proj, tmp = np.matmul(M, np.array([r, c, 1]).transpose())
+    #             # print(r_proj/tmp, c_proj/tmp)
+    #             stitched[int(r_proj / tmp), int(c_proj / tmp] = img2[r, c]
+    #         except:
+    #             pass
+    warped = cv2.warpPerspective(img2, M, (img1.shape[1] + img2.shape[1], max(img1.shape[0], img2.shape[0])))
+    cv2.imwrite('warped.jpg', warped)
+    stitched = warped.copy()
+    stitched[0:img1.shape[0], 0:img1.shape[1]] = img1
+    for i in range(img1.shape[0]):
+        for j in range(img1.shape[1]):
+            if warped[i, j, 0] > 0 or warped[i, j, 1] > 0 or warped[i, j, 2] > 0:
+                weight = 1.0 - (j / img1.shape[1])
+                stitched[i, j] = img1[i, j] * weight + warped[i, j] * (1 - weight)
     return stitched
 
 
 def main():
-    # img1 = cv2.imread(sys.argv[1])
-    # img2 = cv2.imread(sys.argv[2])
-    img1 = cv2.imread("img_1.jpg")
-    img2 = cv2.imread("img_2.jpg")
+    img1 = cv2.imread(sys.argv[1])
+    img2 = cv2.imread(sys.argv[2])
     pts1, fts1 = sift_detect_compute(img1)
     pts2, fts2 = sift_detect_compute(img2)
     matching_pairs = matching(fts1, fts2)
     keypoints1 = np.float32([pts1[int(m[0])] for m in matching_pairs])
     keypoints2 = np.float32([pts2[int(m[1])] for m in matching_pairs])
     h_matrix = compute_homography(keypoints1, keypoints2)
-    result = stitch(img1, img2, h_matrix)  # TODO: complete code.
+    result = stitch(img1, img2, h_matrix)
     plt.subplot(211)
-    plt.imshow(cv2.cvtColor(draw_matching(img1, keypoints1,img2, keypoints2), cv2.COLOR_BGR2RGB))
+    correspondence_img = draw_matching(img1, keypoints1, img2, keypoints2)
+    cv2.imwrite("matched.jpg", correspondence_img)
+    plt.imshow(cv2.cvtColor(correspondence_img, cv2.COLOR_BGR2RGB))
+    plt.subplot(212)
+    plt.imshow(cv2.cvtColor(result, cv2.COLOR_BGR2RGB))
     plt.show()
-    # print(keypoints1, keypoints2)
     cv2.imwrite("out.jpg", result)
 
 
