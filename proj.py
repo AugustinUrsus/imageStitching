@@ -2,6 +2,7 @@ import math
 import sys
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 # To execute, do python proj.py <input1> <input2>.
@@ -9,63 +10,43 @@ import numpy as np
 
 # Pipeline: find interest points, then create SIFT descriptor, then matching them, then find stitching line.
 
-
-# TODO: interest points: change to RGB detector.
-
-def gaussDeriv2D(sigma):
-    """ Generate 2d gaussian filter given sigma (sigma > 0) of size 3*sigma
-        @Output: 2d gaussian filter as 2d array
-    """
-    filter_size = 2 * math.ceil(3 * sigma) + 1
-    g_x = math.ceil(3 * sigma) - np.ones((filter_size, filter_size)) * np.array(range(filter_size))
-    g_y = -g_x.transpose()
-
-    dividend = 2 * math.pi * sigma ** 4
-
-    G_x = -np.multiply(g_x / dividend, np.exp(-(np.square(g_x) + np.square(g_y)) / (2 * sigma * sigma)))
-    G_y = -G_x.transpose()
-
-    return [G_x, G_y]
-
-# Can we use just grayscale image to detect the interest points?
-def harris(img, si=1, sd=0.7, R=range(16, 23), T=1e6, a=0.05):
-    size_i = int(math.ceil(si * 3) * 2 + 1)
-    weight = cv2.getGaussianKernel(ksize=size_i, sigma=si)
-    weight = weight.dot(weight.T).view('float64')
-
-    gx, gy = gaussDeriv2D(sd)
-    dr = cv2.filter2D(img, ddepth=cv2.CV_64F, kernel=gx).view('float64')
-    dc = cv2.filter2D(img, ddepth=cv2.CV_64F, kernel=gy).view('float64')
-
-    h = np.stack((dr * dr, dr * dc, dc * dc), axis=-1).view('float64')
-
-    M = cv2.filter2D(h, ddepth=cv2.CV_64F, kernel=weight)
-
-    r_score = (M[:, :, 0] * M[:, :, 2] - M[:, :, 1] * M[:, :, 1]) - a * np.square(M[:, :, 0] + M[:, :, 2])
-    return r_score
-
-
-# TODO: descriptor
-
-def sift(img, x, y):
-    pass
-
-
-# TODO: matching
-# Compute shifting vectors
-def match_imgs(img1, img2, points1, points2):
-    pass
-
-
-# TODO: stitching
-def stitch_imgs(img1, img2, line):
-    pass
-
-
 # Basic entry point with I/O operation.
 
+# Using OpenCV and SIFT to find the feature points and their SIFT descriptor
+def sift_detect_compute(img):
+    sift = cv2.xfeatures2d.SIFT_create()
+    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    pts, fts = sift.detectAndCompute(img_gray, None)
+    pts = np.float32([p.pt for p in pts])
+    return pts, fts
+
+
+# Based on that descriptor, we find the best matches
+def matching(pts1, fts1, pts2, fts2, ratio=0.6, thres=4.0):
+    matcher = cv2.BFMatcher()
+    raw_matches = matcher.knnMatch(fts1, fts2, 2)  # match 2, then compare the ratio between these two.
+    final_matches = []
+    for m in raw_matches:
+        if len(m) > 1 and m[0].distance < ratio * m[1].distance:  # match is successfully found.
+            final_matches.append((m[0].trainIdx, m[0].queryIdx))
+    ptsa = np.float32([pts1[m[1]] for m in final_matches])
+    ptsb = np.float32([pts2[m[0]] for m in final_matches])
+    mat, tmp = cv2.findHomography(ptsa, ptsb, cv2.RANSAC, thres)
+    return mat
+
+
+def stitch(img1, img2, M):
+    stitched = cv2.warpPerspective(img1, M, (img1.shape[1] + img2.shape[1], img2.shape[0]))
+    stitched[0:img1.shape[0], 0:img2.shape[1]] = img2
+    return stitched
+
+
 if __name__ == '__main__':
-    img1 = cv2.imread(sys.argv[1])
-    img2 = cv2.imread(sys.argv[2])
-    result = None  # TODO: complete code.
+    img1 = cv2.imread("img_1.jpg")
+    img2 = cv2.imread("img_2.jpg")
+    pts1, fts1 = sift_detect_compute(img1)
+    pts2, fts2 = sift_detect_compute(img2)
+    h_matrix = matching(pts1, fts1, pts2, fts2)
+    print(h_matrix)
+    result = stitch(img1, img2, h_matrix)  # TODO: complete code.
     cv2.imwrite("out.jpg", result)
